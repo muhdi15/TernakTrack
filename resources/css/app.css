@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        scrollbar-gutter: stable;
+    }
+
+    .dark {
+        color-scheme: dark;
+    }
+}
+
+@layer components {
+    .tt-card {
+        @apply bg-white dark:bg-gray-800 rounded-xl shadow-card border border-gray-200/70 dark:border-gray-700/60;
+    }
+
+    .tt-input {
+        @apply w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-gray-800 dark:text-gray-100 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500;
+    }
+
+    .tt-btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 active:bg-brand-700 disabled:opacity-60;
+    }
+
+    .tt-btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg bg-white dark:bg-gray-700 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-100 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 transition hover:bg-gray-50 dark:hover:bg-gray-600;
+    }
+
+    .tt-badge {
+        @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+    }
+
+    .tt-label {
+        @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+    }
+}
+
+/* Hide elements before Alpine.js initializes */
+[x-cloak] {
+    display: none !important;
+}
+
+/* ===== Leaflet (Sesi 5) ===== */
+.leaflet-container {
+    font-family: inherit;
+}
+
+.fence-mini-map {
+    height: 10rem;
+    width: 100%;
+    background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+}
+
+.tt-animal-icon {
+    background: transparent;
+    border: none;
+}
+
+.tt-animal-pin {
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+
+.tt-animal-pin[data-status="inside"] {
+    background-color: #16a34a;
+}
+
+.tt-animal-pin[data-status="outside"] {
+    background-color: #dc2626;
+}
+
+.tt-animal-pin[data-status="unassigned"],
+.tt-animal-pin[data-status="none"],
+.tt-animal-pin:not([data-status]),
+.tt-animal-pin[data-status=""] {
+    background-color: #9ca3af;
+}
+
+/* Thin scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(156 163 175 / 0.5) transparent;
+}
+
+.dark * {
+    scrollbar-color: rgb(75 85 99 / 0.6) transparent;
+}
