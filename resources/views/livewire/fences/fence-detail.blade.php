@@ -251,11 +251,15 @@
 
                 const fenceId = {{ $fence->getKey() }};
 
-                const rootEl = document.getElementById('fence-detail-map')?.closest('[wire\\\\:id]') || null;
-                const comp = rootEl
-                    ? window.Livewire.find(rootEl.getAttribute('wire:id'))
-                    : window.Livewire.first();
-                window.ttFenceDetailDelete = () => comp.call('deleteFence');
+                window.ttFenceDetailDelete = () => {
+                    const root = document.getElementById('fence-detail-map')?.closest('[wire\\\\:id]') || null;
+                    const c = root
+                        ? window.Livewire.find(root.getAttribute('wire:id'))
+                        : window.Livewire.first();
+                    if (c) {
+                        c.call('deleteFence');
+                    }
+                };
                 window.ttFenceDetailMap = map;
                 })();
             }

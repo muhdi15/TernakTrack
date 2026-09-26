@@ -228,6 +228,14 @@ berbasis Leaflet + Livewire 3.
 - **`Livewire.first()` menarget komponen pertama** (badge notifikasi sidebar),
   bukan komponen form → `sync()` / hapus fence memakai
   `Livewire.find(rootEl.getAttribute('wire:id')).set(...)`.
+- **`Livewire.find(id)` belum tersedia di `DOMContentLoaded`** (komponen belum
+  ter-hydrate) → `ttFenceDetailDelete` menyimpan referensi saat klik, bukan saat
+  inisialisasi, sehingga tombol hapus fence berfungsi tanpa `TypeError`.
+- **Leaflet z-index bleeding**: pane Leaflet bawaan ber-`z-index: 400` dan naik
+  ke stacking context halaman sehingga peta "menembus" backdrop modal hapus.
+  Container Leaflet kini `isolation: isolate` (pane terkunci di dalamnya),
+  wrapper peta live-map ikut di-isolasi, dan modal konfirmasi dinaikkan ke
+  `z-index: 1100` (di atas ambang Leaflet 1000).
 - **Escape selector Blade**: `closest('[wire\\:id]')` di blade dirender menjadi
   `'[wire\:id]'` yang string JS-nya menjadi `[wire:id]` (escape `\:` tidak valid)
   → ditulis `'[wire\\\\:id]'` (4 backslash di file).
@@ -240,7 +248,16 @@ berbasis Leaflet + Livewire 3.
   - Gambar poligon 4 titik → `livePoints=4`, luas live `5,8639 ha` → simpan →
     redirect `/fences` → kartu baru menampilkan area yang sama + peta mini
     ter-initialize.
-  - Peta mini semua kartu merender poligon (`miniMapHasPolygons=6/6`).
+  - Peta mini semua kartu merender poligon (`miniMapHasPolygons=9/9`).
+  - Edit fence: polygon dimuat ulang (4 titik, luas `5,8639 ha`), 1 titik
+    dihapus lewat mode "Edit Titik" → `3` titik, luas `2,9320 ha`, disimpan dan
+    area kartu sinkron (`editCardMatches=true`).
+  - Hapus fence via modal konfirmasi ("Hapus Fence?") → redirect `/fences`,
+    kartu dan data fence hilang (`fenceGoneAfterDelete=true`); saat modal
+    terbuka, `elementFromPoint` di tengah peta mini mengirim ke backdrop
+    (`bg-slate-900/60`), bukan pane Leaflet — bukti backdrop menutupi peta.
   - Live map: 3 perangkat ber-lokasi muncul, filter status bekerja, trail
-    pergerakan digambar (polyline bertambah), tanpa error JS (`pageErrors=[]`).
+    pergerakan digambar (polyline bertambah; skrip menabur LocationLog segar ke
+    jendela 7 jam karena data seed lebih tua dari 7 hari), tanpa error JS
+    (`pageErrors=[]`).
   - Detail pagar: poligon + marker + riwayat kejadian tampil.

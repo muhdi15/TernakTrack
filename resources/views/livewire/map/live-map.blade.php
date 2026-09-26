@@ -80,7 +80,7 @@
     </div>
 
     {{-- ===== Peta utama ===== --}}
-    <div class="tt-card relative mt-4 overflow-hidden p-0">
+    <div class="tt-card relative isolate mt-4 overflow-hidden p-0">
         <div wire:ignore>
             <div id="live-map" class="h-[70vh] w-full"></div>
         </div>

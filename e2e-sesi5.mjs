@@ -1,5 +1,6 @@
 import { default as puppeteer } from 'puppeteer-core';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const BASE = 'http://127.0.0.1:8001';
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -26,6 +27,40 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const goto = (path) => page.goto(BASE + path, { waitUntil: 'domcontentloaded', timeout: 60000 });
 const shot = (name) => page.screenshot({ path: `${SHOT}/${name}.png` });
 const waitFor = (fn, timeout = 25000) => page.waitForFunction(fn, { timeout });
+
+// Seed a few fresh location logs into the 7h trail window (seeded data is older
+// than 7 days relative to "today", so the trail would legitimately be empty).
+function seedTrailLogs() {
+    const php = `
+$animals = App\\Models\\Animal::query()->whereNotNull('device_id')->orderBy('id')->limit(3)->get();
+$base = now()->subMinutes(30);
+$i = 0;
+foreach ($animals as $a) {
+    for ($k = 0; $k < 4; $k++) {
+        $ts = $base->copy()->addMinutes($i * 3);
+        App\\Models\\LocationLog::create([
+            'device_id' => $a->device_id,
+            'animal_id' => $a->id,
+            'latitude' => -7.5 + ($k * 0.0015),
+            'longitude' => 110.2 + ($k * 0.0015),
+            'altitude' => 100,
+            'speed_kmh' => 4.5,
+            'heading' => 90,
+            'accuracy_meters' => 8,
+            'satellites' => 12,
+            'hdop' => 0.8,
+            'recorded_at' => $ts,
+            'received_at' => now(),
+            'is_valid' => true,
+        ]);
+        $i++;
+    }
+}
+echo 'seeded=' . $i;
+`;
+    const r = spawnSync('php', ['artisan', 'tinker', '--execute', php], { encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.trim() : 'ERR:' + (r.stderr || '').trim().slice(0, 200);
+}
 
 // ---------- LOGIN ----------
 await goto('/login');
@@ -237,10 +272,140 @@ if (newCard) {
         });
         return maps.length > 0 ? maps[0].querySelectorAll('svg path').length : 0;
     });
+    summary.newFenceId = await page.evaluate(() => {
+        const maps = Array.from(document.querySelectorAll('.fence-mini-map')).filter((el) => {
+            const p = el.parentElement && el.parentElement.parentElement;
+            return p && p.textContent.includes('Fence E2E');
+        });
+        if (maps.length === 0) return null;
+        const a = maps[0].parentElement && maps[0].parentElement.closest('a[href]');
+        const m = a ? (a.getAttribute('href') || '').match(/\/fences\/(\d+)/) : null;
+        return m ? parseInt(m[1], 10) : null;
+    });
 }
 await shot('fences-after');
 
+// ---------- FENCE EDIT (preloaded polygon + vertex removal) ----------
+if (summary.newFenceId) {
+    const id = summary.newFenceId;
+    await goto('/fences/' + id + '/edit');
+    await sleep(2500);
+
+    const editProbe = await page.evaluate(async () => {
+        const tt = window.ttFenceFormMap;
+        const out = {
+            mapExists: !!tt && !!tt.map,
+            preloaded: false, svgPaths: 0, livePoints: '', areaBefore: '',
+            markersShown: 0, pointsAfter: 0, areaAfter: '', removedOne: false, areaChanged: false,
+        };
+        if (!tt || !tt.map) return out;
+        out.preloaded = tt.points.length >= 3;
+        out.svgPaths = document.querySelectorAll('#fence-draw-map svg path').length;
+        out.livePoints = document.getElementById('fence-live-points')?.textContent.trim() || '';
+        out.areaBefore = document.getElementById('fence-live-area')?.textContent.trim() || '';
+
+        // enable vertex markers
+        document.getElementById('tb-edit').dispatchEvent(
+            new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        await new Promise((r) => setTimeout(r, 400));
+        const icons = document.querySelectorAll('#fence-draw-map .leaflet-marker-icon');
+        out.markersShown = icons.length;
+        // remove one vertex (click its icon) to change the polygon
+        if (icons.length >= 2 && tt.points.length > 3) {
+            icons[1].click();
+            await new Promise((r) => setTimeout(r, 1800));
+        }
+        out.pointsAfter = tt.points.length;
+        out.areaAfter = document.getElementById('fence-live-area')?.textContent.trim() || '';
+        out.removedOne = out.pointsAfter === 3;
+        out.areaChanged = out.areaBefore !== out.areaAfter;
+        return out;
+    });
+    summary.edit = editProbe;
+    await shot('fence-form-edit');
+
+    summary.editNameKept = await page.evaluate((n) =>
+        document.getElementById('fence-name')?.value === n, summary.nameSet);
+
+    await page.evaluate(() => {
+        document.querySelector('form[wire\\:submit="save"] button[type="submit"]').click();
+    });
+    let editLanded = false;
+    try {
+        await waitFor("!window.location.href.includes('/fences/" + id + "/edit')");
+        editLanded = true;
+    } catch (e) { await sleep(2000); }
+    summary.editLanded = editLanded;
+    summary.afterEditUrl = page.url();
+
+    await goto('/fences');
+    await sleep(2000);
+    summary.editCardArea = await page.evaluate((name) => {
+        const maps = Array.from(document.querySelectorAll('.fence-mini-map')).filter((el) => {
+            const p = el.parentElement && el.parentElement.parentElement;
+            return p && p.textContent.includes(name);
+        });
+        if (maps.length === 0) return null;
+        const card = maps[0].parentElement.parentElement;
+        const t = Array.from(card.querySelectorAll('div'))
+            .find((d) => String(d.className || '').includes('tabular-nums'));
+        return t ? t.textContent.trim() : null;
+    }, summary.nameSet);
+    summary.editCardMatches = !!summary.edit.areaAfter
+        && summary.editCardArea === summary.edit.areaAfter;
+}
+
+// ---------- FENCE DELETE (via confirm modal) ----------
+if (summary.newFenceId) {
+    const id = summary.newFenceId;
+    await goto('/fences/' + id);
+    await sleep(2500);
+
+    summary.deleteHandlersReady = await page.evaluate(() =>
+        typeof window.ttFenceDetailDelete === 'function');
+
+    await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+            .filter((b) => b.textContent.trim() === 'Hapus');
+        if (btns.length > 0) btns[0].click();
+    });
+    await sleep(500);
+    summary.deleteModalOpen = await page.evaluate(() =>
+        !!(window.Alpine && window.Alpine.store('confirm').open));
+    summary.deleteModalTitle = await page.evaluate(() =>
+        window.Alpine ? window.Alpine.store('confirm').title : null);
+
+    summary.deleteConfirmed = false;
+    if (summary.deleteModalOpen) {
+        summary.deleteConfirmed = await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('[x-data="Alpine.store(\'confirm\')"] button'));
+            const btn = btns[btns.length - 1];
+            if (!btn) return false;
+            btn.click();
+            return true;
+        });
+        try {
+            await waitFor("!window.location.href.includes('/fences/" + id + "')", 15000);
+        } catch (e) {}
+        await sleep(2500);
+    }
+    summary.deleteLanded = !page.url().includes('/fences/' + id);
+    summary.afterDeleteUrl = page.url();
+    await shot('fences-after-delete');
+
+    await goto('/fences');
+    await sleep(2000);
+    summary.fencesAfterDelete = await page.$$eval('.fence-mini-map', (els) => els.length);
+    summary.fenceGoneAfterDelete = await page.evaluate((name) => {
+        return Array.from(document.querySelectorAll('.fence-mini-map')).filter((el) => {
+            const p = el.parentElement && el.parentElement.parentElement;
+            return p && p.textContent.includes(name);
+        }).length === 0;
+    }, summary.nameSet);
+}
+
 // ---------- LIVE MAP ----------
+summary.seedTrailLogs = seedTrailLogs();
 await goto('/map');
 await sleep(3500);
 summary.mapPins = await page.$$eval('.tt-animal-pin', (els) => els.length);

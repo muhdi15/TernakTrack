@@ -120,7 +120,7 @@
                 x-data="Alpine.store('confirm')"
                 x-cloak
                 x-show="open"
-                class="fixed inset-0 z-[95] flex items-end justify-center p-4 sm:items-center"
+                class="fixed inset-0 z-[1100] flex items-end justify-center p-4 sm:items-center"
                 @keydown.escape.window="cancel()"
             >
                 <div x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" @click="cancel()" class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>

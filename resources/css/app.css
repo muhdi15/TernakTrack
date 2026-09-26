@@ -46,6 +46,7 @@
 /* ===== Leaflet (Sesi 5) ===== */
 .leaflet-container {
     font-family: inherit;
+    isolation: isolate;
 }
 
 .fence-mini-map {
